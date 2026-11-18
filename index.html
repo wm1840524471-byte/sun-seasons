@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>七点半的太阳</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one big sky window at top (the star), controls under it, then shadow ruler + tilted-earth diagram side by side, then the 4-season table. */
+:root{
+  --bg:#eef4f7; --card:#ffffff; --fg:#1f2d3a; --muted:#5d6f7e; --line:#d5e1e8;
+  --sun:#f5a623; --summer:#e8613a; --spring:#3fa66b; --autumn:#c98a1b; --winter:#3a78c9; --today:#8a4fd6;
+  --display:"ZCOOL KuaiLe","PingFang SC","Hiragino Sans GB",sans-serif;
+  --body:"Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1820; --card:#17232e; --fg:#e6eef4; --muted:#9db0bf; --line:#2a3a48;
+  --summer:#ff7d55; --spring:#5cc988; --autumn:#e3a83a; --winter:#6aa3ef; --today:#b086f0; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1820; --card:#17232e; --fg:#e6eef4; --muted:#9db0bf; --line:#2a3a48;
+  --summer:#ff7d55; --spring:#5cc988; --autumn:#e3a83a; --winter:#6aa3ef; --today:#b086f0; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.7;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+h1,h2{font-family:var(--display);font-weight:400;text-wrap:balance;margin:0;line-height:1.25}
+h1{font-size:clamp(28px,5vw,42px)}
+h2{font-size:24px}
+p{margin:0}
+.lead{color:var(--muted);max-width:42em}
+.lead b{color:var(--fg)}
+.sky{border-radius:18px;overflow:hidden;position:relative;background:#0b1830}
+#sky{display:block;width:100%;height:auto;aspect-ratio:16/8}
+.readout{background:#13233a;color:#fff;padding:10px 16px;font-size:15px;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px}
+.readout .big{font-family:var(--display);font-size:26px;line-height:1.2;color:#ffd23f}
+.controls{display:flex;flex-direction:column;gap:12px}
+.days{display:flex;flex-wrap:wrap;gap:8px}
+.days button{font:inherit;font-size:15px;border:2px solid var(--c);color:var(--c);background:transparent;border-radius:999px;padding:4px 14px;cursor:pointer}
+.days button[aria-pressed="true"]{background:var(--c);color:#fff}
+.days button:focus-visible,.play:focus-visible,input:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.timerow{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.play{font:inherit;border:0;background:var(--sun);color:#3a2300;font-weight:700;border-radius:10px;padding:6px 16px;cursor:pointer}
+.time{font-family:var(--display);font-size:24px;min-width:4.2em;font-variant-numeric:tabular-nums}
+#t{flex:1;min-width:180px;accent-color:var(--sun)}
+.jump{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;padding:3px 10px;cursor:pointer}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:720px){.grid2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card canvas,.card svg{width:100%;height:auto;display:block}
+.note{color:var(--muted);font-size:14.5px}
+.shadowtxt{font-size:17px}
+.shadowtxt b{font-family:var(--display);font-size:22px;font-weight:400;color:var(--sun)}
+.tablebox{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:560px;font-variant-numeric:tabular-nums}
+th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-weight:500;color:var(--muted);font-size:14px}
+td:first-child{font-weight:700}
+tr.sel{background:color-mix(in srgb,var(--sun) 14%,transparent)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.why{display:flex;flex-direction:column;gap:8px;max-width:44em}
+.why li{margin-bottom:4px}
+footer{color:var(--muted);font-size:13px}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header style="display:flex;flex-direction:column;gap:8px">
+    <h1>早上七点半，太阳在哪儿？</h1>
+    <p class="lead">爸爸今天上班时发现：太阳怎么<b>突然变低了</b>？我们在郑州，每天早上 7:30 出门。拖一拖下面的时间条，点一点四个季节，看看同一个时刻，太阳在天上的位置有多不一样。</p>
+  </header>
+
+  <div class="sky">
+    <canvas id="sky" width="1280" height="640" aria-label="郑州天空：太阳一天走过的路线"></canvas>
+    <div class="readout" id="readout"></div>
+  </div>
+
+  <div class="controls">
+    <div class="days" id="days" role="group" aria-label="选日子"></div>
+    <div class="timerow">
+      <button class="play" id="play" type="button">▶ 看太阳走一天</button>
+      <span class="time" id="timeLabel">07:30</span>
+      <input id="t" type="range" min="270" max="1230" step="1" value="450" aria-label="时间">
+      <button class="jump" id="j730" type="button">回到 7:30</button>
+      <button class="jump" id="jnoon" type="button">中午 12:30</button>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>影子尺</h2>
+      <canvas id="shadow" width="640" height="260" aria-label="小朋友的影子长度"></canvas>
+      <p class="shadowtxt" id="shadowTxt"></p>
+      <p class="note">太阳越低，影子越长。下次出门，踩一踩自己的影子，就知道太阳有多高。</p>
+    </section>
+    <section class="card">
+      <h2>为什么会这样？</h2>
+      <svg id="orbit" viewBox="0 0 400 300" role="img" aria-label="地球歪着身子绕太阳转"></svg>
+      <p class="note" id="orbitTxt"></p>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>四个季节，比一比</h2>
+    <div class="tablebox"><table id="tbl"></table></div>
+    <p class="note">郑州，北纬 34.75°，东经 113.65°。日出按太阳上沿露出地平线计算（含大气折射）。“7:30 有多高”指太阳离地平线的角度：0° 贴着地面，90° 正头顶。</p>
+  </section>
+
+  <section class="card why">
+    <h2>三句话记住</h2>
+    <ol>
+      <li><b>地球是歪着身子转的。</b>它的转轴斜了大约 23.4°，绕太阳一圈，郑州就一会儿“迎着”太阳，一会儿“背着”太阳。</li>
+      <li><b>迎着太阳的季节（夏天），太阳起得早、爬得高</b>：夏至 7:30 太阳已经升到二十多度，日出在 5 点多。</li>
+      <li><b>背着太阳的季节（冬天），太阳起得晚、走得低</b>：冬至的日出就在 7:30 前后，出门时它正好贴着地平线。</li>
+    </ol>
+    <p class="note" id="suddenTxt"></p>
+  </section>
+
+  <footer>数据由页面按 NOAA 太阳位置公式实时计算，与 Python 独立计算结果一致（误差 1 分钟、0.1° 以内）。楼房轮廓是示意。</footer>
+</div>
+
+<script>
+const LAT=34.75, LON=113.65, TZ=8, RISE=-0.833;
+const rad=d=>d*Math.PI/180, deg=r=>r*180/Math.PI;
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+function doy(y,m,d){return Math.round((Date.UTC(y,m-1,d)-Date.UTC(y,0,1))/864e5);}
+function sun(y,m,d,min){ // min = local minutes since midnight
+  const h=min/60, n=doy(y,m,d);
+  const g=2*Math.PI/365*(n+(h-12)/24);
+  const eot=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));
+  const dec=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g);
+  const tst=min+eot+4*LON-60*TZ, H=rad(tst/4-180), p=rad(LAT);
+  const alt=deg(Math.asin(Math.sin(p)*Math.sin(dec)+Math.cos(p)*Math.cos(dec)*Math.cos(H)));
+  let az=deg(Math.atan2(Math.sin(H),Math.cos(H)*Math.sin(p)-Math.tan(dec)*Math.cos(p)))+180;
+  return {alt,az};
+}
+function dayInfo(y,m,d){
+  let rise=null,set=null,noon=0,nAlt=-99,prev=sun(y,m,d,0).alt;
+  for(let t=1;t<=1440;t++){const a=sun(y,m,d,t).alt;
+    if(prev<RISE&&a>=RISE)rise=t; if(prev>=RISE&&a<RISE)set=t; if(a>nAlt){nAlt=a;noon=t} prev=a;}
+  return {rise,set,noon,nAlt,len:set-rise,a730:sun(y,m,d,450).alt};
+}
+const hm=t=>{t=Math.round(t);return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0')};
+const dur=t=>`${Math.floor(t/60)} 小时 ${t%60} 分`;
+
+const now=new Date(Date.now()+ (TZ*60+new Date().getTimezoneOffset())*6e4);
+const TY=now.getFullYear(), TM=now.getMonth()+1, TD=now.getDate();
+const DAYS=[
+  {id:'today',name:`今天 ${TM}/${TD}`,y:TY,m:TM,d:TD,c:'--today'},
+  {id:'spring',name:'春分 3/20',y:TY,m:3,d:20,c:'--spring',season:'春天'},
+  {id:'summer',name:'夏至 6/21',y:TY,m:6,d:21,c:'--summer',season:'夏天'},
+  {id:'autumn',name:'秋分 9/23',y:TY,m:9,d:23,c:'--autumn',season:'秋天'},
+  {id:'winter',name:'冬至 12/21',y:TY,m:12,d:21,c:'--winter',season:'冬天'},
+];
+DAYS.forEach(D=>D.info=dayInfo(D.y,D.m,D.d));
+
+let cur=DAYS[0], T=450, playing=false;
+
+/* ---------- day buttons ---------- */
+const daysEl=document.getElementById('days');
+DAYS.forEach(D=>{const b=document.createElement('button');b.type='button';b.textContent=D.name;b.style.setProperty('--c',`var(${D.c})`);
+  b.onclick=()=>{select(D.id);history.replaceState(null,'','#'+D.id)};D.btn=b;daysEl.appendChild(b);});
+function select(id){cur=DAYS.find(D=>D.id===id)||DAYS[0];DAYS.forEach(D=>D.btn.setAttribute('aria-pressed',D===cur));drawAll();}
+
+/* ---------- sky ---------- */
+const sky=document.getElementById('sky'), sx=sky.getContext('2d');
+const W=sky.width, Hh=sky.height, HOR=Hh*0.80, AZ0=45, AZ1=315, AMAX=85;
+const X=az=>(az-AZ0)/(AZ1-AZ0)*W, Y=alt=>HOR-alt/AMAX*(HOR-30);
+// deterministic skyline, height in degrees by azimuth
+const sky_line=[];{let s=7;const r=()=>(s=(s*9301+49297)%233280)/233280;
+  for(let az=AZ0;az<AZ1;){const w=4+r()*9, h=2+r()*5.5; sky_line.push([az,az+w,h]); az+=w+r()*2;}}
+const skylineAt=az=>{for(const[a,b,h]of sky_line) if(az>=a&&az<b) return h; return 0;};
+function skyColor(alt){
+  if(alt<-6) return ['#0b1830','#1a2b4d'];
+  if(alt<0)  return ['#24365e','#c9775a'];
+  if(alt<8)  return ['#4f7fb8','#f3b37a'];
+  return ['#3d8fd6','#bfe2f7'];
+}
+function drawSky(){
+  const p=sun(cur.y,cur.m,cur.d,T);
+  const [top,bot]=skyColor(p.alt);
+  const g=sx.createLinearGradient(0,0,0,HOR);g.addColorStop(0,top);g.addColorStop(1,bot);
+  sx.fillStyle=g;sx.fillRect(0,0,W,HOR);
+  // altitude grid
+  sx.strokeStyle='rgba(255,255,255,.22)';sx.fillStyle='rgba(255,255,255,.75)';sx.lineWidth=1;sx.font='22px "Noto Sans SC",sans-serif';
+  for(const a of [15,30,45,60,75]){const y=Y(a);sx.setLineDash([6,8]);sx.beginPath();sx.moveTo(0,y);sx.lineTo(W,y);sx.stroke();sx.setLineDash([]);sx.fillText(a+'°',W-52,y-6);}
+  // all paths faint, selected bold
+  const order=[...DAYS.filter(D=>D!==cur),cur];
+  for(const D of order){
+    const sel=D===cur;sx.strokeStyle=css(D.c);sx.globalAlpha=sel?1:.55;sx.lineWidth=sel?6:3;sx.setLineDash(sel?[]:[10,8]);
+    sx.beginPath();let st=false;
+    for(let t=200;t<=1300;t+=3){const q=sun(D.y,D.m,D.d,t);if(q.alt<-1||q.az<AZ0||q.az>AZ1){st=false;continue}
+      const x=X(q.az),y=Y(q.alt);st?sx.lineTo(x,y):sx.moveTo(x,y);st=true;}
+    sx.stroke();sx.setLineDash([]);sx.globalAlpha=1;
+    // 7:30 marker on every path
+    const q=sun(D.y,D.m,D.d,450);
+    if(q.alt>-1){sx.fillStyle=css(D.c);sx.beginPath();sx.arc(X(q.az),Y(Math.max(q.alt,0)),sel?9:6,0,7);sx.fill();
+      sx.strokeStyle='#fff';sx.lineWidth=2;sx.stroke();}
+  }
+  // sun
+  if(p.alt>-3){
+    const x=X(p.az),y=Y(p.alt);
+    const halo=sx.createRadialGradient(x,y,4,x,y,90);halo.addColorStop(0,'rgba(255,230,140,.9)');halo.addColorStop(1,'rgba(255,230,140,0)');
+    sx.fillStyle=halo;sx.beginPath();sx.arc(x,y,90,0,7);sx.fill();
+    sx.fillStyle='#ffd23f';sx.beginPath();sx.arc(x,y,24,0,7);sx.fill();
+    sx.strokeStyle='#f5a623';sx.lineWidth=4;sx.stroke();
+  }
+  // skyline + ground
+  sx.fillStyle='#24323f';
+  for(const[a,b,h]of sky_line){const x0=X(a),x1=X(b),y=Y(h);sx.fillRect(x0,y,x1-x0+1,HOR-y+1);}
+  sx.fillStyle='#3e5b3a';sx.fillRect(0,HOR,W,Hh-HOR);
+  // windows light up when dark
+  if(p.alt<2){sx.fillStyle='rgba(255,214,120,.7)';for(const[a,b,h]of sky_line){for(let yy=Y(h)+8;yy<HOR-6;yy+=14)for(let xx=X(a)+5;xx<X(b)-6;xx+=12) if(((xx*7+yy*3)|0)%5===0) sx.fillRect(xx,yy,4,6);}}
+  // compass
+  sx.fillStyle='#fff';sx.font='bold 26px "Noto Sans SC",sans-serif';sx.textAlign='center';
+  [[45,'东北'],[90,'东'],[135,'东南'],[180,'南'],[225,'西南'],[270,'西'],[315,'西北']].forEach(([a,t])=>{const x=Math.min(Math.max(X(a),36),W-36);sx.fillText(t,x,HOR+44);});
+  sx.textAlign='left';
+  // readout
+  const blocked=p.alt>RISE&&p.alt<skylineAt(p.az)+0.5;
+  let state;
+  if(p.alt<RISE) state=T<cur.info.noon?'太阳还没起床':'太阳已经下山';
+  else if(blocked) state='太阳已升起，可被楼房挡住了';
+  else state='在楼顶上看得见';
+  document.getElementById('readout').innerHTML=
+    `<span>${cur.name} · ${hm(T)}</span><span class="big">太阳高度 ${p.alt<RISE?'—':Math.max(p.alt,0).toFixed(1)+'°'}</span><span>${state}</span>`;
+  return p;
+}
+
+/* ---------- shadow ruler ---------- */
+const sh=document.getElementById('shadow'), hx=sh.getContext('2d');
+function drawShadow(p){
+  const w=sh.width,h=sh.height,gy=h-50,kid=70,kx=170;
+  hx.clearRect(0,0,w,h);
+  hx.fillStyle=css('--line');hx.fillRect(0,gy,w,3);
+  const fg=css('--fg'), alt=p.alt;
+  let txt;
+  if(alt>0.3){
+    const L=kid/Math.tan(rad(alt)), shown=Math.min(L,w-kx-10);
+    hx.fillStyle='rgba(60,70,90,.45)';hx.beginPath();hx.ellipse(kx+shown/2,gy+2,shown/2,9,0,0,7);hx.fill();
+    if(L>shown){hx.fillStyle=css('--muted');hx.font='18px "Noto Sans SC",sans-serif';hx.fillText('还没完……→',w-110,gy+34);}
+    // sunbeam
+    const sxp=Math.max(kx-Math.cos(rad(alt))*400, -10), syp=gy-kid-Math.sin(rad(alt))*400;
+    hx.strokeStyle='rgba(245,166,35,.5)';hx.lineWidth=2;hx.setLineDash([6,6]);hx.beginPath();hx.moveTo(kx-Math.cos(rad(alt))*120,gy-kid-Math.sin(rad(alt))*120);hx.lineTo(kx+L>w?w:kx+L,gy);hx.stroke();hx.setLineDash([]);
+    hx.fillStyle='#ffd23f';hx.beginPath();hx.arc(kx-Math.cos(rad(alt))*130,gy-kid-Math.sin(rad(alt))*130+0,16,0,7);hx.fill();
+    const r=L/kid;
+    txt=`太阳高 ${alt.toFixed(1)}°，影子是身高的 <b>${r>=10?Math.round(r):r.toFixed(1)} 倍</b>。一个 1.3 米的小朋友，影子大约 <b>${(1.3*r).toFixed(r>=10?0:1)} 米</b>。`;
+  } else txt='太阳还在地平线下，没有影子。';
+  // kid
+  hx.fillStyle=fg;hx.strokeStyle=fg;hx.lineWidth=5;hx.lineCap='round';
+  hx.beginPath();hx.arc(kx,gy-kid+10,10,0,7);hx.fill();
+  hx.beginPath();hx.moveTo(kx,gy-kid+20);hx.lineTo(kx,gy-28);hx.moveTo(kx,gy-28);hx.lineTo(kx-9,gy);hx.moveTo(kx,gy-28);hx.lineTo(kx+9,gy);
+  hx.moveTo(kx-14,gy-kid+34);hx.lineTo(kx+14,gy-kid+34);hx.stroke();
+  // schoolbag
+  hx.fillStyle=css('--today');hx.fillRect(kx-16,gy-kid+24,8,20);
+  document.getElementById('shadowTxt').innerHTML=txt;
+}
+
+/* ---------- orbit ---------- */
+const POS={summer:[70,150],autumn:[200,262],winter:[330,150],spring:[200,38]};
+function drawOrbit(){
+  const svg=document.getElementById('orbit'),fg=css('--fg'),mu=css('--muted');
+  const seasonId=cur.id==='today'?nearestSeason():cur.id;
+  let s=`<ellipse cx="200" cy="150" rx="130" ry="112" fill="none" stroke="${css('--line')}" stroke-width="2" stroke-dasharray="5 6"/>
+  <circle cx="200" cy="150" r="26" fill="#ffd23f" stroke="#f5a623" stroke-width="3"/><text x="200" y="156" text-anchor="middle" font-size="15" fill="#5a3a00">太阳</text>`;
+  for(const D of DAYS.slice(1)){
+    const [x,y]=POS[D.id], on=D.id===seasonId, r=on?22:16, col=css(D.c);
+    const ang=Math.atan2(150-y,200-x); // toward sun
+    const dark=`M ${x+Math.cos(ang+Math.PI/2)*r} ${y+Math.sin(ang+Math.PI/2)*r} A ${r} ${r} 0 0 1 ${x+Math.cos(ang-Math.PI/2)*r} ${y+Math.sin(ang-Math.PI/2)*r} Z`;
+    // axis tilt: top leans to +x by 23.4°
+    const tx=Math.sin(rad(23.4))*(r+12), ty=Math.cos(rad(23.4))*(r+12);
+    s+=`<g opacity="${on?1:.6}"><circle cx="${x}" cy="${y}" r="${r}" fill="#6fb1e8" stroke="${col}" stroke-width="${on?4:2}"/>
+      <path d="${dark}" fill="rgba(10,20,40,.55)"/>
+      <line x1="${x-tx}" y1="${y+ty}" x2="${x+tx}" y2="${y-ty}" stroke="${fg}" stroke-width="2"/>
+      <circle cx="${x+tx}" cy="${y-ty}" r="3" fill="${fg}"/>
+      <text x="${x}" y="${y+r+(D.id==='spring'?-r*2-14:22)}" text-anchor="middle" font-size="${on?17:14}" fill="${on?col:mu}" font-weight="${on?700:400}">${D.name.split(' ')[0]}</text></g>`;
+  }
+  svg.innerHTML=s;
+  const t={summer:'夏至：地球的北半边“仰着脸”朝太阳，郑州晒得正，太阳爬得最高。',
+           winter:'冬至：北半边“扭过头”背着太阳，郑州的太阳斜斜地照，起得晚、走得低。',
+           spring:'春分：不偏不倚，白天黑夜差不多一样长。',autumn:'秋分：又回到不偏不倚，之后郑州一天比一天背着太阳。'};
+  document.getElementById('orbitTxt').textContent=(cur.id==='today'?`今天离${DAYS.find(D=>D.id===seasonId).name.split(' ')[0]}最近。`:'')+t[seasonId]+'注意：地轴（黑线）一直朝同一个方向歪。';
+}
+function nearestSeason(){
+  const n=doy(cur.y,cur.m,cur.d);let best='spring',bd=999;
+  for(const D of DAYS.slice(1)){let dd=Math.abs(doy(D.y,D.m,D.d)-n);dd=Math.min(dd,365-dd);if(dd<bd){bd=dd;best=D.id}}return best;
+}
+
+/* ---------- table ---------- */
+function drawTable(){
+  let s='<tr><th>日子</th><th>7:30 有多高</th><th>日出</th><th>日落</th><th>白天有多长</th><th>中午最高</th></tr>';
+  for(const D of DAYS){const i=D.info;
+    s+=`<tr class="${D===cur?'sel':''}"><td><span class="dot" style="background:var(${D.c})"></span>${D.name}</td>
+    <td>${i.a730<RISE?'还没升起':Math.max(i.a730,0).toFixed(1)+'°'}${D.id==='winter'?'（刚露头）':''}</td><td>${hm(i.rise)}</td><td>${hm(i.set)}</td><td>${dur(i.len)}</td><td>${i.nAlt.toFixed(1)}°</td></tr>`;}
+  document.getElementById('tbl').innerHTML=s;
+}
+function suddenNote(){
+  const t=DAYS[0].info;
+  const m=new Date(Date.UTC(TY,TM-1,TD)-30*864e5);
+  const a=dayInfo(m.getUTCFullYear(),m.getUTCMonth()+1,m.getUTCDate());
+  document.getElementById('suddenTxt').textContent=
+   `为什么感觉是“突然”变低？一个月前（${m.getUTCMonth()+1}/${m.getUTCDate()}）7:30 太阳有 ${a.a730.toFixed(1)}°，高过路边的楼；今天只有 ${Math.max(t.a730,0).toFixed(1)}°，日出推迟到 ${hm(t.rise)}。太阳低到七八度以下，就容易躲在楼后面，还正好晃眼睛，所以一下子就注意到了。`;
+}
+
+function drawAll(){
+  const p=drawSky();drawShadow(p);drawOrbit();drawTable();
+  document.getElementById('timeLabel').textContent=hm(T);document.getElementById('t').value=T;
+}
+
+/* ---------- time controls ---------- */
+const slider=document.getElementById('t'), playBtn=document.getElementById('play');
+slider.oninput=()=>{T=+slider.value;stop();drawAll()};
+document.getElementById('j730').onclick=()=>{stop();T=450;drawAll()};
+document.getElementById('jnoon').onclick=()=>{stop();T=750;drawAll()};
+let raf=0,last=0;
+function step(ts){if(!playing)return;if(last){T+=(ts-last)/1000*90;if(T>1230)T=270;}last=ts;T=Math.round(T*10)/10;drawAll();raf=requestAnimationFrame(step);}
+function stop(){playing=false;cancelAnimationFrame(raf);playBtn.textContent='▶ 看太阳走一天';}
+playBtn.onclick=()=>{if(playing){stop();return}
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches){T=Math.min(T+60,1230);drawAll();return}
+  playing=true;last=0;playBtn.textContent='❚❚ 暂停';raf=requestAnimationFrame(step);};
+
+function fromHash(){const h=location.hash.slice(1);select(DAYS.some(D=>D.id===h)?h:'today');}
+addEventListener('hashchange',fromHash);
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',drawAll);
+suddenNote();fromHash();
+document.fonts?.ready.then(drawAll);
+</script>
+</body>
+</html>
